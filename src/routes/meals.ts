@@ -35,4 +35,36 @@ export async function mealsRoutes(app: FastifyInstance) {
       return reply.status(201).send()
     },
   )
+
+  app.get(
+    '/',
+    {
+      preHandler: [checkSessionExists],
+    },
+    async (request, reply) => {
+      const meals = await knex('meals')
+        .where({
+          user_id: request.user?.id,
+        })
+        .orderBy('date', 'desc')
+
+      const transformedMeals = meals.map((meal) => {
+        const dateWithoutHours = new Date(meal.date).toISOString().split('T')[0]
+
+        return {
+          id: meal.id,
+          name: meal.name,
+          description: meal.description,
+          isOnDiet: meal.is_on_diet,
+          date: dateWithoutHours,
+          createdAt: meal.created_at,
+          updatedAt: meal.updated_at,
+        }
+      })
+
+      return reply.status(200).send({
+        meals: transformedMeals,
+      })
+    },
+  )
 }
