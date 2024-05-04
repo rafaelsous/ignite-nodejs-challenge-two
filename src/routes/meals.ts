@@ -1,14 +1,38 @@
+import { randomUUID } from 'node:crypto'
 import { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 
+import { checkSessionExists } from '../middlewares/check-session-exists'
+import { knex } from '../database'
+
 export async function mealsRoutes(app: FastifyInstance) {
-  app.post('/', (request) => {
-    const createUserSchema = z.object({
-      name: z.string(),
-    })
+  app.post(
+    '/',
+    {
+      preHandler: [checkSessionExists],
+    },
+    async (request, reply) => {
+      const createMealSchema = z.object({
+        name: z.string(),
+        description: z.string(),
+        date: z.coerce.date(),
+        isOnDiet: z.boolean(),
+      })
 
-    const { name } = createUserSchema.parse(request.body)
+      const { name, description, date, isOnDiet } = createMealSchema.parse(
+        request.body,
+      )
 
-    return { message: `Welcome at Meals Routes, ${name}!` }
-  })
+      await knex('meals').insert({
+        id: randomUUID(),
+        name,
+        description,
+        date: date.getTime(),
+        is_on_diet: isOnDiet,
+        user_id: request.user?.id,
+      })
+
+      return reply.status(201).send()
+    },
+  )
 }
