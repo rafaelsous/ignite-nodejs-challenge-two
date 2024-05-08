@@ -1,9 +1,10 @@
-import { randomUUID } from 'node:crypto'
 import { FastifyInstance } from 'fastify'
+import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 
-import { checkSessionExists } from '../middlewares/check-session-exists'
+import dayjs from 'dayjs'
 import { knex } from '../database'
+import { checkSessionExists } from '../middlewares/check-session-exists'
 
 export async function mealsRoutes(app: FastifyInstance) {
   app.post(
@@ -105,6 +106,49 @@ export async function mealsRoutes(app: FastifyInstance) {
     },
   )
 
+  app.put(
+    '/:id',
+    {
+      preHandler: [checkSessionExists],
+    },
+    async (request, reply) => {
+      const findMealByIdParamSchema = z.object({
+        id: z.string().uuid(),
+      })
+
+      const { id } = findMealByIdParamSchema.parse(request.params)
+
+      const updateMealSchema = z.object({
+        name: z.string(),
+        description: z.string(),
+        date: z.coerce.date(),
+        isOnDiet: z.boolean(),
+      })
+
+      const { name, description, date, isOnDiet } = updateMealSchema.parse(
+        request.body,
+      )
+
+      const meal = await knex('meals').where({ id }).first()
+
+      if (!meal) {
+        return reply.status(404).send({ message: 'Resource not found' })
+      }
+
+      const updatedAt = dayjs(new Date(), 'en-US').format('YYYY-MM-DD HH:mm:ss')
+
+      await knex('meals').where({ id }).update({
+        name,
+        description,
+        date: date.getTime(),
+        is_on_diet: isOnDiet,
+        updated_at: updatedAt,
+      })
+
+      return reply.status(200).send()
+    },
+  )
+
   app.delete(
     '/:id',
     {
@@ -117,23 +161,13 @@ export async function mealsRoutes(app: FastifyInstance) {
 
       const { id } = findMealByIdParamSchema.parse(request.params)
 
-      const meal = await knex('meals')
-        .where({
-          id,
-          user_id: request.user?.id,
-        })
-        .first()
+      const meal = await knex('meals').where({ id }).first()
 
       if (!meal) {
         return reply.status(404).send({ message: 'Resource not found' })
       }
 
-      await knex('meals')
-        .where({
-          id,
-          user_id: request.user?.id,
-        })
-        .del()
+      await knex('meals').where({ id }).del()
 
       return reply.status(204).send()
     },
