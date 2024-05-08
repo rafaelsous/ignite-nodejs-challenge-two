@@ -50,14 +50,14 @@ export async function mealsRoutes(app: FastifyInstance) {
         .orderBy('date', 'desc')
 
       const transformedMeals = meals.map((meal) => {
-        const dateWithoutHours = new Date(meal.date).toISOString().split('T')[0]
+        const formattedDate = dayjs(meal.date).format('YYYY-MM-DD')
 
         return {
           id: meal.id,
           name: meal.name,
           description: meal.description,
           isOnDiet: !!meal.is_on_diet,
-          date: dateWithoutHours,
+          date: formattedDate,
           createdAt: meal.created_at,
           updatedAt: meal.updated_at,
         }
@@ -92,12 +92,13 @@ export async function mealsRoutes(app: FastifyInstance) {
         return reply.status(404).send({ message: 'Resource not found' })
       }
 
-      const dateWithoutHours = new Date(meal.date).toISOString().split('T')[0]
+      const formattedDate = dayjs(meal.date).format('YYYY-MM-DD')
+
       const transformedMeal = {
         name: meal.name,
         description: meal.description,
         isOnDiet: !!meal.is_on_diet,
-        date: dateWithoutHours,
+        date: formattedDate,
         createdAt: meal.created_at,
         updatedAt: meal.updated_at,
       }
@@ -170,6 +171,46 @@ export async function mealsRoutes(app: FastifyInstance) {
       await knex('meals').where({ id }).del()
 
       return reply.status(204).send()
+    },
+  )
+
+  app.get(
+    '/metrics',
+    {
+      preHandler: [checkSessionExists],
+    },
+    async (request, reply) => {
+      const meals = await knex('meals')
+        .where({
+          user_id: request.user?.id,
+        })
+        .orderBy('date', 'desc')
+
+      const totalMealsOnDiet = meals.filter((meal) => meal.is_on_diet).length
+      const totalMealsOffDiet = meals.filter((meal) => !meal.is_on_diet).length
+      const { bestOnDietSequence } = meals.reduce(
+        (acc, meal) => {
+          if (meal.is_on_diet) {
+            acc.currentSequence += 1
+          } else {
+            acc.currentSequence = 0
+          }
+
+          if (acc.currentSequence > acc.bestOnDietSequence) {
+            acc.bestOnDietSequence = acc.currentSequence
+          }
+
+          return acc
+        },
+        { bestOnDietSequence: 0, currentSequence: 0 },
+      )
+
+      return reply.status(200).send({
+        totalMeals: meals.length,
+        totalMealsOnDiet,
+        totalMealsOffDiet,
+        bestOnDietSequence,
+      })
     },
   )
 }
