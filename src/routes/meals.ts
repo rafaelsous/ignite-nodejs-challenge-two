@@ -130,7 +130,12 @@ export async function mealsRoutes(app: FastifyInstance) {
         request.body,
       )
 
-      const meal = await knex('meals').where({ id }).first()
+      const meal = await knex('meals')
+        .where({
+          id,
+          user_id: request.user?.id,
+        })
+        .first()
 
       if (!meal) {
         return reply.status(404).send({ message: 'Resource not found' })
@@ -162,7 +167,12 @@ export async function mealsRoutes(app: FastifyInstance) {
 
       const { id } = findMealByIdParamSchema.parse(request.params)
 
-      const meal = await knex('meals').where({ id }).first()
+      const meal = await knex('meals')
+        .where({
+          id,
+          user_id: request.user?.id,
+        })
+        .first()
 
       if (!meal) {
         return reply.status(404).send({ message: 'Resource not found' })
